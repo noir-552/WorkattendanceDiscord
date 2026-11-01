@@ -101,9 +101,7 @@ function buildReportEmbed({ summary, detailRows = null, days, tz = TZ }) {
 
   const totalMs = people.reduce((a, p) => a + p.total, 0);
   const totalSessions = people.reduce((a, p) => a + p.n, 0);
-  embed.setDescription(
-    `Total **${fmtDur(totalMs)}** dari **${totalSessions} sesi** · **${people.length} orang**`,
-  );
+  const head = `Total **${fmtDur(totalMs)}** dari **${totalSessions} sesi** · **${people.length} orang**`;
 
   const detailByUser = new Map();
   if (detailRows) {
@@ -113,22 +111,25 @@ function buildReportEmbed({ summary, detailRows = null, days, tz = TZ }) {
     }
   }
 
-  for (const [i, p] of people.slice(0, 24).entries()) {
-    embed.addFields({
-      name: `${i + 1}. ${p.username || 'User'} — ${fmtDur(p.total)}`,
-      value: detailRows ? sessionLines(detailByUser.get(p.user_id) || [], tz) : `${p.n} sesi`,
-    });
+  const sections = people.map((p, i) => {
+    const header = `**${i + 1}.** <@${p.user_id}> — **${fmtDur(p.total)}** · ${p.n} sesi`;
+    if (!detailRows) return header;
+    return [header, sessionLines(detailByUser.get(p.user_id) || [], tz)].filter(Boolean).join('\n');
+  });
+
+  let out = head;
+  let included = 0;
+  for (const section of sections) {
+    const next = `${out}\n\n${section}`;
+    if (next.length > 4000) break;
+    out = next;
+    included++;
+  }
+  if (included < sections.length) {
+    out += `\n\n… (+${sections.length - included} orang lagi)`;
   }
 
-  const rest = people.slice(24);
-  if (rest.length) {
-    embed.addFields({
-      name: `➕ ${rest.length} orang lagi`,
-      value: `${rest.reduce((a, p) => a + p.n, 0)} sesi · ${fmtDur(rest.reduce((a, p) => a + p.total, 0))}`,
-    });
-  }
-
-  return embed;
+  return embed.setDescription(clampText(out, 4096));
 }
 
 module.exports = {

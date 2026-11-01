@@ -44,16 +44,14 @@ test('buildReportEmbed summarizes each person and the team total', () => {
   ];
 
   const embed = buildReportEmbed({ summary, days: 7, tz: TZ });
+  const text = embed.data.description;
 
   assert.equal(embed.data.title, '📊 Report 7 hari terakhir');
-  assert.match(embed.data.description, /\*\*2j 0m 0d\*\*/);
-  assert.match(embed.data.description, /\*\*3 sesi\*\*/);
-  assert.match(embed.data.description, /\*\*2 orang\*\*/);
-  assert.equal(embed.data.fields.length, 2);
-  assert.match(embed.data.fields[0].name, /ani/);
-  assert.match(embed.data.fields[0].name, /1j 30m 0d/);
-  assert.doesNotMatch(embed.data.fields[0].name, /<@/);
-  assert.equal(embed.data.fields[0].value, '2 sesi');
+  assert.match(text, /\*\*2j 0m 0d\*\*/);
+  assert.match(text, /\*\*3 sesi\*\*/);
+  assert.match(text, /\*\*2 orang\*\*/);
+  assert.match(text, /\*\*1\.\*\* <@1> — \*\*1j 30m 0d\*\* · 2 sesi/);
+  assert.match(text, /\*\*2\.\*\* <@2> — \*\*0j 30m 0d\*\* · 1 sesi/);
 });
 
 test('buildReportEmbed shows per-session activity and link in detail mode', () => {
@@ -68,25 +66,26 @@ test('buildReportEmbed shows per-session activity and link in detail mode', () =
   }];
 
   const embed = buildReportEmbed({ summary, detailRows, days: 7, tz: TZ });
-  const field = embed.data.fields.find((f) => f.name.includes('ani'));
+  const text = embed.data.description;
 
-  assert.match(field.value, /01 Jan 07\.00–07\.30/);
-  assert.match(field.value, /30m 0d/);
-  assert.match(field.value, /\[ngerjain inian\]\(https:\/\/example\.test\/pr\/1\)/);
+  assert.match(text, /<@1>/);
+  assert.match(text, /01 Jan 07\.00–07\.30/);
+  assert.match(text, /30m 0d/);
+  assert.match(text, /\[ngerjain inian\]\(https:\/\/example\.test\/pr\/1\)/);
 });
 
-test('buildReportEmbed caps fields at Discord limit', () => {
-  const summary = Array.from({ length: 30 }, (_, i) => ({
+test('buildReportEmbed keeps the report within Discord description limit', () => {
+  const summary = Array.from({ length: 300 }, (_, i) => ({
     user_id: String(i + 1),
     username: `user${i + 1}`,
     n: 1,
-    total: (30 - i) * MIN,
+    total: (300 - i) * MIN,
   }));
 
   const embed = buildReportEmbed({ summary, days: 7, tz: TZ });
 
-  assert.equal(embed.data.fields.length, 25);
-  assert.match(embed.data.fields[24].name, /6 orang lagi/);
+  assert.ok(embed.data.description.length <= 4096);
+  assert.match(embed.data.description, /orang lagi/);
 });
 
 test('createQueries groups completed sessions within the window', () => {

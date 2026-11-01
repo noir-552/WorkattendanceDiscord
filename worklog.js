@@ -115,7 +115,7 @@ function buildReportEmbed({ summary, detailRows = null, days, tz = TZ }) {
 
   for (const [i, p] of people.slice(0, 24).entries()) {
     embed.addFields({
-      name: `${i + 1}. <@${p.user_id}> — ${fmtDur(p.total)}`,
+      name: `${i + 1}. ${p.username || 'User'} — ${fmtDur(p.total)}`,
       value: detailRows ? sessionLines(detailByUser.get(p.user_id) || [], tz) : `${p.n} sesi`,
     });
   }

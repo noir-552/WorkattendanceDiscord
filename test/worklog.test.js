@@ -50,8 +50,9 @@ test('buildReportEmbed summarizes each person and the team total', () => {
   assert.match(embed.data.description, /\*\*3 sesi\*\*/);
   assert.match(embed.data.description, /\*\*2 orang\*\*/);
   assert.equal(embed.data.fields.length, 2);
-  assert.match(embed.data.fields[0].name, /<@1>/);
+  assert.match(embed.data.fields[0].name, /ani/);
   assert.match(embed.data.fields[0].name, /1j 30m 0d/);
+  assert.doesNotMatch(embed.data.fields[0].name, /<@/);
   assert.equal(embed.data.fields[0].value, '2 sesi');
 });
 
@@ -67,7 +68,7 @@ test('buildReportEmbed shows per-session activity and link in detail mode', () =
   }];
 
   const embed = buildReportEmbed({ summary, detailRows, days: 7, tz: TZ });
-  const field = embed.data.fields.find((f) => f.name.includes('<@1>'));
+  const field = embed.data.fields.find((f) => f.name.includes('ani'));
 
   assert.match(field.value, /01 Jan 07\.00–07\.30/);
   assert.match(field.value, /30m 0d/);

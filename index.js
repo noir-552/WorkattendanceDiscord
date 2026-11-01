@@ -5,43 +5,20 @@ const {
   Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, EmbedBuilder, MessageFlags,
 } = require('discord.js');
 const Database = require('better-sqlite3');
+const {
+  TZ, SCHEMA, createQueries, fmtDur, fmtTime, buildStatusEmbed, buildReportEmbed,
+} = require('./worklog');
 
 const { DISCORD_TOKEN, CLIENT_ID, GUILD_ID, LOG_CHANNEL_ID } = process.env;
 const DB_PATH = process.env.DB_PATH || './data/worklog.db';
-const TZ = process.env.TZ_DISPLAY || 'Asia/Jakarta';
 
 // ---------- Database ----------
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
-db.exec(`
-  CREATE TABLE IF NOT EXISTS sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL,
-    username TEXT,
-    start_at INTEGER NOT NULL,
-    end_at INTEGER,
-    link TEXT,
-    activity TEXT
-  );
-  CREATE INDEX IF NOT EXISTS idx_user_open ON sessions(user_id, end_at);
-`);
-
-const q = {
-  active: db.prepare('SELECT * FROM sessions WHERE user_id = ? AND end_at IS NULL'),
-  start: db.prepare('INSERT INTO sessions (user_id, username, start_at) VALUES (?, ?, ?)'),
-  close: db.prepare('UPDATE sessions SET end_at = ?, link = ?, activity = ? WHERE id = ?'),
-  report: db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(end_at - start_at), 0) AS total
-                      FROM sessions WHERE user_id = ? AND end_at IS NOT NULL AND start_at >= ?`),
-};
+db.exec(SCHEMA);
+const q = createQueries(db);
 
 // ---------- Helpers ----------
-const fmtDur = (ms) => {
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-  return `${h}j ${m}m ${sec}d`;
-};
-const fmtTime = (ts) =>
-  new Date(ts).toLocaleString('id-ID', { timeZone: TZ, dateStyle: 'medium', timeStyle: 'short' });
 const isValidUrl = (str) => {
   try { const u = new URL(str); return u.protocol === 'http:' || u.protocol === 'https:'; }
   catch { return false; }
@@ -55,11 +32,12 @@ const commands = [
     .setDescription('Stop stopwatch (wajib isi link & activity)')
     .addStringOption((o) => o.setName('link').setDescription('Link hasil kerja (PR, doc, Figma, dll)').setRequired(true))
     .addStringOption((o) => o.setName('activity').setDescription('Apa yang dikerjain').setRequired(true).setMinLength(5)),
-  new SlashCommandBuilder().setName('status').setDescription('Cek timer yang lagi jalan'),
+  new SlashCommandBuilder().setName('status').setDescription('Cek siapa yang lagi kerja dan berapa lama'),
   new SlashCommandBuilder()
     .setName('report')
-    .setDescription('Rekap jam kerja')
-    .addIntegerOption((o) => o.setName('hari').setDescription('Berapa hari ke belakang (default 7)').setMinValue(1).setMaxValue(90)),
+    .setDescription('Rekap jam kerja semua orang')
+    .addIntegerOption((o) => o.setName('hari').setDescription('Berapa hari ke belakang (default 7)').setMinValue(1).setMaxValue(90))
+    .addBooleanOption((o) => o.setName('detail').setDescription('Tampilkan rincian tiap sesi (activity & link)')),
 ].map((c) => c.toJSON());
 
 async function registerCommands() {
@@ -122,15 +100,16 @@ client.on('interactionCreate', async (i) => {
     }
 
     if (i.commandName === 'status') {
-      const act = q.active.get(uid);
-      if (!act) return i.reply({ content: '⏸️ Lagi gak check-in.', ...ephemeral });
-      return i.reply({ content: `⏱️ Timer jalan **${fmtDur(now - act.start_at)}** (sejak ${fmtTime(act.start_at)})`, ...ephemeral });
+      return i.reply({ embeds: [buildStatusEmbed(q.activeAll.all(), now, TZ)] });
     }
 
     if (i.commandName === 'report') {
       const days = i.options.getInteger('hari') ?? 7;
-      const r = q.report.get(uid, now - days * 86400000);
-      return i.reply({ content: `📊 ${days} hari terakhir: **${r.n} sesi**, total **${fmtDur(r.total)}**`, ...ephemeral });
+      const since = now - days * 86400000;
+      const detailRows = i.options.getBoolean('detail') ? q.detail.all(since) : null;
+      return i.reply({
+        embeds: [buildReportEmbed({ summary: q.summary.all(since), detailRows, days, tz: TZ })],
+      });
     }
   } catch (err) {
     console.error(err);

@@ -1,0 +1,10 @@
+services:
+  worklog-bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - worklog-data:/app/data
+
+volumes:
+  worklog-data:

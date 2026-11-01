@@ -54,7 +54,7 @@ const commands = [
     .setName('check-out')
     .setDescription('Stop stopwatch (wajib isi link & activity)')
     .addStringOption((o) => o.setName('link').setDescription('Link hasil kerja (PR, doc, Figma, dll)').setRequired(true))
-    .addStringOption((o) => o.setName('activity').setDescription('Apa yang dikerjain').setRequired(true).setMinLength(10)),
+    .addStringOption((o) => o.setName('activity').setDescription('Apa yang dikerjain').setRequired(true).setMinLength(5)),
   new SlashCommandBuilder().setName('status').setDescription('Cek timer yang lagi jalan'),
   new SlashCommandBuilder()
     .setName('report')

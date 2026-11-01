@@ -7,7 +7,7 @@ Bot Discord untuk mencatat jam kerja. `/check-in` memulai stopwatch, `/check-out
 | Command | Fungsi |
 |---|---|
 | `/check-in` | Mulai sesi kerja. Ditolak kalau masih ada sesi aktif. |
-| `/check-out link:<url> activity:<teks>` | Tutup sesi. Link harus `http(s)://`, activity minimal 10 karakter. Hasilnya dikirim sebagai embed ke channel log. |
+| `/check-out link:<url> activity:<teks>` | Tutup sesi. Link harus `http(s)://`, activity minimal 5 karakter. Hasilnya dikirim sebagai embed ke channel log. |
 | `/status` | Lihat durasi sesi yang sedang berjalan (hanya terlihat oleh kamu). |
 | `/report [hari]` | Rekap jumlah sesi dan total jam, default 7 hari terakhir. |
 

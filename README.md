@@ -66,34 +66,6 @@ npm start
 
 Kalau berhasil, log akan menampilkan `✅ Slash commands registered`.
 
-## Deploy
-
-Bot hanya membuka koneksi keluar ke Discord Gateway, jadi **tidak perlu port, domain, atau tunnel**.
-
-### Docker Compose
-
-```bash
-docker compose up -d --build
-docker compose logs -f
-```
-
-### Dokploy
-
-1. Push repo ke GitHub (pastikan `.env` ada di `.gitignore`).
-2. Buat service **Compose** yang mengarah ke repo ini.
-3. Isi environment variables di tab **Environment**.
-4. Klik **Deploy**.
-
-## Data & Backup
-
-Semua sesi tersimpan di tabel `sessions` pada SQLite, di dalam volume `worklog-data`. Data tetap aman saat redeploy.
-
-Backup:
-
-```bash
-docker compose cp worklog-bot:/app/data/worklog.db ./backup-worklog.db
-```
-
 ## Roadmap
 
 - [ ] Reminder otomatis kalau lupa check-out lebih dari 10 jam

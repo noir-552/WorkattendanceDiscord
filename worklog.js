@@ -43,12 +43,26 @@ const fmtDur = (ms) => {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return `${h}j ${m}m ${sec}d`;
 };
-const fmtTime = (ts, tz = TZ) =>
-  new Date(ts).toLocaleString('id-ID', { timeZone: tz, dateStyle: 'medium', timeStyle: 'short' });
-const fmtDate = (ts, tz = TZ) =>
-  new Date(ts).toLocaleDateString('id-ID', { timeZone: tz, day: '2-digit', month: 'short' });
-const fmtClock = (ts, tz = TZ) =>
-  new Date(ts).toLocaleTimeString('id-ID', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+// Intl.DateTimeFormat mahal dibuat; toLocale*String bikin baru tiap panggilan.
+// Cache per (jenis, tz) supaya /report detail dengan ratusan sesi tetap cepat.
+const FMT_OPTS = {
+  time: { dateStyle: 'medium', timeStyle: 'short' },
+  date: { day: '2-digit', month: 'short' },
+  clock: { hour: '2-digit', minute: '2-digit' },
+};
+const fmtCache = new Map();
+function formatter(kind, tz) {
+  const key = `${kind}|${tz}`;
+  let f = fmtCache.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat('id-ID', { timeZone: tz, ...FMT_OPTS[kind] });
+    fmtCache.set(key, f);
+  }
+  return f;
+}
+const fmtTime = (ts, tz = TZ) => formatter('time', tz).format(ts);
+const fmtDate = (ts, tz = TZ) => formatter('date', tz).format(ts);
+const fmtClock = (ts, tz = TZ) => formatter('clock', tz).format(ts);
 
 const clampText = (text, max) => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
 

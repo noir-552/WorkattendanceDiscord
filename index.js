@@ -15,6 +15,10 @@ const DB_PATH = process.env.DB_PATH || './data/worklog.db';
 // ---------- Database ----------
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
+// WAL + synchronous=NORMAL: write lebih cepat & gak nge-block read, tetap aman dari korupsi.
+db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.pragma('busy_timeout = 5000');
 db.exec(SCHEMA);
 const q = createQueries(db);
 
@@ -46,13 +50,34 @@ async function registerCommands() {
   console.log('✅ Slash commands registered');
 }
 
+// Kirim embed ke channel log tanpa nge-block reply ke user.
+// Pakai cache dulu (0 request), baru fetch kalau belum ada.
+async function relayToLogChannel(payload) {
+  try {
+    const ch = client.channels.cache.get(LOG_CHANNEL_ID)
+      ?? await client.channels.fetch(LOG_CHANNEL_ID);
+    if (ch?.isTextBased()) await ch.send(payload);
+  } catch (err) {
+    console.error('⚠️ Gagal kirim ke log channel:', err.message);
+  }
+}
+
 // ---------- Bot ----------
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 client.once('clientReady', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
-  await registerCommands();
+  try {
+    await registerCommands();
+  } catch (err) {
+    console.error('❌ Gagal register slash commands:', err);
+  }
+  // Warm-up cache channel log supaya check-out pertama gak kena delay fetch.
+  if (LOG_CHANNEL_ID) client.channels.fetch(LOG_CHANNEL_ID).catch(() => {});
 });
+
+client.on('error', (err) => console.error('Discord client error:', err));
+process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
 
 client.on('interactionCreate', async (i) => {
   if (!i.isChatInputCommand()) return;
@@ -92,11 +117,10 @@ client.on('interactionCreate', async (i) => {
         )
         .setTimestamp();
 
-      if (LOG_CHANNEL_ID && LOG_CHANNEL_ID !== i.channelId) {
-        const ch = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-        if (ch) await ch.send({ embeds: [embed] });
-      }
-      return i.reply({ embeds: [embed] });
+      // Reply dulu (batas ack Discord 3 detik), relay ke log channel jalan di background.
+      await i.reply({ embeds: [embed] });
+      if (LOG_CHANNEL_ID && LOG_CHANNEL_ID !== i.channelId) relayToLogChannel({ embeds: [embed] });
+      return;
     }
 
     if (i.commandName === 'status') {
@@ -113,8 +137,21 @@ client.on('interactionCreate', async (i) => {
     }
   } catch (err) {
     console.error(err);
-    if (!i.replied) i.reply({ content: '💥 Error, cek log bot.', ...ephemeral }).catch(() => {});
+    const msg = { content: '💥 Error, cek log bot.', ...ephemeral };
+    const send = i.replied || i.deferred ? i.followUp(msg) : i.reply(msg);
+    send.catch(() => {});
   }
 });
+
+// Graceful shutdown (docker stop kirim SIGTERM) supaya WAL ke-checkpoint & DB ketutup rapi.
+function shutdown(signal) {
+  console.log(`👋 ${signal} diterima, shutdown...`);
+  client.destroy().catch(() => {}).finally(() => {
+    try { db.close(); } catch {}
+    process.exit(0);
+  });
+}
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 client.login(DISCORD_TOKEN);
